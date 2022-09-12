@@ -135,8 +135,6 @@ def coherencies( ground_motion_1, ground_motion_2, fs, f_upper_limit, M ):
     smoothed_cross_spectral_density = smoothing_Hamming( M, cross_spectral_density )
     smoothed_auto_spectral_density_1 = smoothing_Hamming( M, auto_spectral_density_1 )
     smoothed_auto_spectral_density_2 = smoothing_Hamming( M, auto_spectral_density_2 )
-    
-    # Coherency estimates
     coherency = np.divide( smoothed_cross_spectral_density, np.power ( np.multiply( smoothed_auto_spectral_density_1, 
                                                                               smoothed_auto_spectral_density_2 ), 0.5 ))
     lagged_coherency = abs(coherency)
