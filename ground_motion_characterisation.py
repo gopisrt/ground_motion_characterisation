@@ -2,7 +2,9 @@ import math
 import numpy as np
 from scipy.signal import butter, sosfilt
 from scipy.fft import fft
-	
+from statistics import mean
+from scipy.linalg import expm
+
 ## Read PEER NGA file
 
 def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
@@ -24,7 +26,7 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 		for i1 in range( n_headers, n_rows ):
 			
 			raw_series += str( raw_data[ i1 ] ).split( )
-		   
+		
 		time_vector = np.arange( 0,  npts * dt, dt )
 		
 		if scale_to_SI_units:
@@ -37,13 +39,13 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 				case 'G':
 					
 					scale_fctr = 9.81
-					
+				
 				case _:
 					
 					scale_fctr = 0.01
-						
+				
 			raw_series = np.asarray( raw_series, dtype = float) * scale_fctr
-		
+
 		file_object.close( )
 		
 		return raw_series, npts, dt, time_vector
@@ -51,7 +53,7 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 	except IOError:
 		
 		print( "File not found!" )
-		
+
 ## Ground motion processing
 
 def ground_motion_processing( raw_series, fs, low_cut_freq = 0.2, high_cut_freq = 20, order = 4, cosine_taper_frctn = 0.1 ):
@@ -65,9 +67,9 @@ def ground_motion_processing( raw_series, fs, low_cut_freq = 0.2, high_cut_freq 
 	
 	sos = butter( order, [ low, high ], analog = False, btype = 'band', output = 'sos' )	
 	processed_series = sosfilt( sos, raw_series )
-	 
+	
 	# De-mean
-	processed_series = processed_series - sum( processed_series ) / npts
+	processed_series = processed_series - mean( processed_series )
 	
 	# cosine tapering
 	cosine_taper_npts = int( cosine_taper_frctn * npts )
@@ -91,7 +93,7 @@ def ground_motion_fft( ground_motion, fs, f_upper_limit ):
     fft_ground_motion = fft( ground_motion ) / fs
     fft_ground_motion = fft_ground_motion[ : fh_upper_indx ]    
     abs_fft_ground_motion = abs( fft_ground_motion )
-        
+    
     return fh, fft_ground_motion, abs_fft_ground_motion
 
 def spectral_densities( ground_motion_1, ground_motion_2, fs, f_upper_limit ):
@@ -135,9 +137,55 @@ def coherencies( ground_motion_1, ground_motion_2, fs, f_upper_limit, M ):
     smoothed_cross_spectral_density = smoothing_Hamming( M, cross_spectral_density )
     smoothed_auto_spectral_density_1 = smoothing_Hamming( M, auto_spectral_density_1 )
     smoothed_auto_spectral_density_2 = smoothing_Hamming( M, auto_spectral_density_2 )
-    coherency = np.divide( smoothed_cross_spectral_density, np.power ( np.multiply( smoothed_auto_spectral_density_1, 
-                                                                              smoothed_auto_spectral_density_2 ), 0.5 ))
+    coherency = np.divide( smoothed_cross_spectral_density, 
+                          np.power ( np.multiply( smoothed_auto_spectral_density_1, smoothed_auto_spectral_density_2 ), 0.5 ))
     lagged_coherency = abs(coherency)
     unlagged_coherency = np.real(coherency)
 
     return fh_upper, coherency, lagged_coherency, unlagged_coherency
+
+def response_spectra(ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_period = 0.01):
+    
+    npts = len( ground_acln )
+    
+    n_periods = int( max_period / delta_period + 1 )
+    period_vctr = np.linspace( 0, max_period,  n_periods)    
+    
+    X = np.zeros( ( 2, npts ) )    
+    SA = np.zeros( ( n_periods ) ) # Spectral acceleration
+    SV = np.zeros( ( n_periods ) ) # Spectral velocity
+    SD = np.zeros( ( n_periods ) ) # Spectral displacement
+    PSA = np.zeros( ( n_periods ) ) # Pseudo spectral acceleration
+    PSV = np.zeros( ( n_periods ) ) # Pseudo spectral velocity
+
+    for i1 in range( 1, n_periods ):
+        
+        omega = 2 * ( math.pi ) / period_vctr[ i1 ]
+        damping = 2 * dmpng_ratio * omega
+        stiffness_per_unit_mass = omega ** 2
+        
+        A = np.matrix( [ [ 0, 1 ], [ -stiffness_per_unit_mass, -damping ] ] )
+        Ae = expm( A * dt )
+        AeB = np.matmul( np.linalg.inv ( A ), np.matmul( ( Ae - np.identity( 2 ) ), np.array( [ [0],  [1] ] ) ) )
+
+        for i2 in range( 1, npts ):
+            
+            X[ :, i2 : i2 + 1 ] = np.matmul( Ae, ( X[ :, i2 - 1 : i2 ] ) ).reshape( 2, 1 ) + np.asarray( AeB, dtype=float ) * ground_acln[ i2 ]   
+
+        rltv_disp = X[0, :]
+        rltv_vlct = X[1, :]
+        abs_acln = - damping * rltv_vlct - stiffness_per_unit_mass * rltv_disp
+        
+        SA[ i1 ] = max( abs( abs_acln ) )
+        SV[ i1 ] = max( abs( rltv_vlct ) )
+        SD[ i1 ] = max( abs( rltv_disp ) )
+        PSA[ i1 ] = SD[ i1 ] * ( omega ** 2 )
+        PSV[ i1 ] = SD[ i1 ] * omega
+    
+    SA[0] = SA[1]
+    SV[0] = SV[1]
+    SD[0] = SD[1]
+    PSA[0] = PSA[1]
+    PSV[0] = PSV[1]
+    
+    return period_vctr, SA, SV, SD, PSA, PSV
