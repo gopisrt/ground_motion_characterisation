@@ -1,9 +1,9 @@
 import math
-import numpy as np
-from scipy.signal import butter, sosfilt
-from scipy.fft import fft
 from statistics import mean
+import numpy as np
+from scipy.fft import fft
 from scipy.linalg import expm
+from scipy.signal import butter, sosfilt
 
 ## Read PEER NGA file
 
@@ -11,6 +11,7 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 	
 	try:
 		
+        # Opening file
 		file_object = open( filepath, 'r' )
 		raw_data  = file_object.readlines( )
 
@@ -21,14 +22,16 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 		npts = int( last_header[ last_header.index( 'NPTS= ' ) + 6 : last_header.index( ', ' ) ] )
 		dt = float( last_header[ last_header.index( 'DT= ' ) + 4 : last_header.index( ' SEC' ) ] )
 		
+        # Constructing raw series
 		raw_series = [ ]
 
 		for i1 in range( n_headers, n_rows ):
 			
 			raw_series += str( raw_data[ i1 ] ).split( )
 		
-		time_vector = np.arange( 0,  npts * dt, dt )
+		time_vector = np.linspace( 0,  ( npts - 1 ) * dt, npts )
 		
+        # Scaling raw series to SI units
 		if scale_to_SI_units:
 			
 			units_header = raw_data[ n_headers - 2 ]
@@ -44,7 +47,7 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 					
 					scale_fctr = 0.01
 				
-			raw_series = np.asarray( raw_series, dtype = float) * scale_fctr
+			raw_series = np.asarray( raw_series, dtype = float ) * scale_fctr
 
 		file_object.close( )
 		
@@ -100,10 +103,9 @@ def spectral_densities( ground_motion_1, ground_motion_2, fs, f_upper_limit ):
     
     # This routine assumes ground motion 1 and 2 have idential duration    
     T_duration = ( len( ground_motion_1 ) - 1 ) / fs
-    # FFT of ground motion 1
-    fh_upper, fft_ground_motion_1, abs_fft_ground_motion_1 = ground_motion_fft( ground_motion_1, fs, f_upper_limit )
     
-    # FFT of ground motion 1
+    # FFT of ground motions
+    fh_upper, fft_ground_motion_1, abs_fft_ground_motion_1 = ground_motion_fft( ground_motion_1, fs, f_upper_limit )
     fh_upper, fft_ground_motion_2, abs_fft_ground_motion_2 = ground_motion_fft( ground_motion_2, fs, f_upper_limit )
     
     # Cross spectral density between ground motions 1 and 2
@@ -111,16 +113,16 @@ def spectral_densities( ground_motion_1, ground_motion_2, fs, f_upper_limit ):
 
     return fh_upper, cross_spectral_density
 
-def smoothing_Hamming( M, unsmoothed_series ):
+def smoothing_Hamming( snooth_order, unsmoothed_series ):
     
     # Smoothing vector
-    m = np.linspace( -M, M, 2 * M + 1)
+    m = np.linspace( -snooth_order, snooth_order, 2 * snooth_order + 1)
     hamm_fctr = 0.538
-    smoothing_vctr= ( hamm_fctr - ( 1 - hamm_fctr ) * np.cos( math.pi * ( m + M ) / M ) ) / ( 1.08 * M )
+    smoothing_vctr= ( hamm_fctr - ( 1 - hamm_fctr ) * np.cos( math.pi * ( m + snooth_order ) / snooth_order ) ) / ( 1.08 * snooth_order )
     
     # Moving average through convolution
     smoothed_series = np.convolve( smoothing_vctr, unsmoothed_series )
-    smoothed_series = smoothed_series[ M : -M ]
+    smoothed_series = smoothed_series[ snooth_order : -snooth_order ]
 
     return smoothed_series
 
@@ -137,12 +139,14 @@ def coherencies( ground_motion_1, ground_motion_2, fs, f_upper_limit, M ):
     smoothed_cross_spectral_density = smoothing_Hamming( M, cross_spectral_density )
     smoothed_auto_spectral_density_1 = smoothing_Hamming( M, auto_spectral_density_1 )
     smoothed_auto_spectral_density_2 = smoothing_Hamming( M, auto_spectral_density_2 )
-    coherency = np.divide( smoothed_cross_spectral_density, 
+    
+    # Coherency computation
+    coherency_complex = np.divide( smoothed_cross_spectral_density, 
                           np.power ( np.multiply( smoothed_auto_spectral_density_1, smoothed_auto_spectral_density_2 ), 0.5 ))
-    lagged_coherency = abs(coherency)
-    unlagged_coherency = np.real(coherency)
+    lagged_coherency = abs(coherency_complex)
+    unlagged_coherency = np.real(coherency_complex)
 
-    return fh_upper, coherency, lagged_coherency, unlagged_coherency
+    return fh_upper, coherency_complex, lagged_coherency, unlagged_coherency
 
 def response_spectra(ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_period = 0.01):
     
