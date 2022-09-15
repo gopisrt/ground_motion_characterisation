@@ -11,7 +11,7 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
     
     try:
         
-         # Opening file
+        # Opening file
         file_object = open( filepath, 'r' )
         raw_data  = file_object.readlines( )
 
@@ -63,7 +63,7 @@ def ground_motion_processing( raw_series, fs, low_cut_freq = 0.2, high_cut_freq 
 
     npts = len( raw_series )
 
-	# bandpass filter
+    # bandpass filter
     nyq = 0.5 * fs	
     low = low_cut_freq / nyq
     high = high_cut_freq / nyq
@@ -71,10 +71,10 @@ def ground_motion_processing( raw_series, fs, low_cut_freq = 0.2, high_cut_freq 
     sos = butter( order, [ low, high ], analog = False, btype = 'band', output = 'sos' )	
     processed_series = sosfilt( sos, raw_series )
 	
-	# De-mean
+    # De-mean
     processed_series = processed_series - mean( processed_series )
 	
-	# cosine tapering
+    # cosine tapering
     cosine_taper_npts = int( cosine_taper_frctn * npts )
     cosine_taper_vctr = 0.5 * ( 1 - np.cos( math.pi * np.linspace(0, cosine_taper_npts, cosine_taper_npts +1, endpoint=True) / npts ) )
 	
