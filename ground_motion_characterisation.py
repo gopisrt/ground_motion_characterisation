@@ -7,12 +7,12 @@ from scipy.signal import butter, sosfilt
 
 ## Read PEER NGA file
 
-def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
+def read_PEER_NGA_file( file_path, scale_to_SI_units = True ):
     
     try:
         
         # Opening file
-        file_object = open( filepath, 'r' )
+        file_object = open( file_path, 'r' )
         raw_data  = file_object.readlines( )
 
         n_rows = len( raw_data )
@@ -24,11 +24,11 @@ def read_PEER_NGA_file( filepath, scale_to_SI_units = True ):
 		
         # Constructing raw series
         raw_series = [ ]
-
+        
         for i1 in range( n_headers, n_rows ):
 			
             raw_series += str( raw_data[ i1 ] ).split( )
-		
+	    
         time_vector = np.linspace( 0,  ( npts - 1 ) * dt, npts )
 		
         # Scaling raw series to SI units
@@ -143,24 +143,24 @@ def coherencies( ground_motion_1, ground_motion_2, fs, f_upper_limit, M ):
     # Coherency computation
     coherency_complex = np.divide( smoothed_cross_spectral_density, 
                           np.power ( np.multiply( smoothed_auto_spectral_density_1, smoothed_auto_spectral_density_2 ), 0.5 ))
-    lagged_coherency = abs(coherency_complex)
-    unlagged_coherency = np.real(coherency_complex)
+    lagged_coherency = abs( coherency_complex )
+    unlagged_coherency = np.real( coherency_complex )
 
     return fh_upper, coherency_complex, lagged_coherency, unlagged_coherency
 
-def response_spectra(ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_period = 0.01):
+def response_spectra( ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_period = 0.01 ):
     
     npts = len( ground_acln )
     
     n_periods = int( max_period / delta_period + 1 )
     period_vctr = np.linspace( 0, max_period,  n_periods)    
     
-    X = np.zeros( ( 2, npts ) )    
-    SA = np.zeros( ( n_periods ) ) # Spectral acceleration
-    SV = np.zeros( ( n_periods ) ) # Spectral velocity
-    SD = np.zeros( ( n_periods ) ) # Spectral displacement
-    PSA = np.zeros( ( n_periods ) ) # Pseudo spectral acceleration
-    PSV = np.zeros( ( n_periods ) ) # Pseudo spectral velocity
+    X = np.zeros( ( 2, npts ) ) # displacement and velocity initialisation
+    SA = np.zeros( ( n_periods, 1 ) ) # Spectral acceleration initialisation
+    SV = np.zeros( ( n_periods, 1 ) ) # Spectral velocity initialisation
+    SD = np.zeros( ( n_periods, 1 ) ) # Spectral displacement initialisation
+    PSA = np.zeros( ( n_periods, 1 ) ) # Pseudo spectral acceleration initialisation
+    PSV = np.zeros( ( n_periods, 1 ) ) # Pseudo spectral velocity initialisation
 
     for i1 in range( 1, n_periods ):
         
@@ -170,14 +170,14 @@ def response_spectra(ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_
         
         A = np.matrix( [ [ 0, 1 ], [ -stiffness_per_unit_mass, -damping ] ] )
         Ae = expm( A * dt )
-        AeB = np.matmul( np.linalg.inv ( A ), np.matmul( ( Ae - np.identity( 2 ) ), np.array( [ [0],  [1] ] ) ) )
+        AeB = np.matmul( np.linalg.inv ( A ), np.matmul( ( Ae - np.identity( 2 ) ), np.array( [ 0,  1 ] ) ) )
 
         for i2 in range( 1, npts ):
-            
-            X[ :, i2 : i2 + 1 ] = np.matmul( Ae, ( X[ :, i2 - 1 : i2 ] ) ).reshape( 2, 1 ) + np.asarray( AeB, dtype=float ) * ground_acln[ i2 ]   
+                        
+            X[ :, i2 ] = np.matmul( Ae, ( X[ :, i2 - 1 ] ) ) + ( np.asarray( AeB, dtype=float ) * ground_acln[ i2 ] )
 
-        rltv_disp = X[0, :]
-        rltv_vlct = X[1, :]
+        rltv_disp = X[ 0, : ]
+        rltv_vlct = X[ 1, : ]
         abs_acln = - damping * rltv_vlct - stiffness_per_unit_mass * rltv_disp
         
         SA[ i1 ] = max( abs( abs_acln ) )
@@ -186,10 +186,10 @@ def response_spectra(ground_acln, dt, dmpng_ratio = 0.05, max_period = 3, delta_
         PSA[ i1 ] = SD[ i1 ] * ( omega ** 2 )
         PSV[ i1 ] = SD[ i1 ] * omega
     
-    SA[0] = SA[1]
-    SV[0] = SV[1]
-    SD[0] = SD[1]
-    PSA[0] = PSA[1]
-    PSV[0] = PSV[1]
+    SA[ 0 ] = SA[ 1 ]
+    SV[ 0 ] = SV[ 1 ]
+    SD[ 0 ] = SD[ 1 ]
+    PSA[ 0 ] = PSA[ 1 ]
+    PSV[ 0 ] = PSV[ 1 ]
     
     return period_vctr, SA, SV, SD, PSA, PSV
