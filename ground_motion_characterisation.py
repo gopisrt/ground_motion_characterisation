@@ -29,6 +29,7 @@ def read_PEER_NGA_file( file_path, scale_to_SI_units = True ):
 			
             raw_series += str( raw_data[ i1 ] ).split( )
 	    
+        raw_series = np.asarray( raw_series, dtype = float )
         time_vector = np.linspace( 0,  ( npts - 1 ) * dt, npts )
 		
         # Scaling raw series to SI units
@@ -47,7 +48,7 @@ def read_PEER_NGA_file( file_path, scale_to_SI_units = True ):
 					
                     scale_fctr = 0.01
 				
-            raw_series = np.asarray( raw_series, dtype = float ) * scale_fctr
+            raw_series *= scale_fctr
 
         file_object.close( )
 		
