@@ -1,7 +1,6 @@
 import math
 from statistics import mean
 import numpy as np
-from scipy.fft import fft
 from scipy.linalg import expm
 from scipy.signal import butter, sosfilt
 
