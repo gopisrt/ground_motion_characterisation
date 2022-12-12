@@ -90,11 +90,11 @@ def ground_motion_fft( ground_motion, fs, f_upper_limit ):
     npts = len( ground_motion )
     nfft = 2 ** math.ceil( math.log2( npts ) )
     fh = np.linspace( 0, fs / 2, int( nfft / 2+1 ) )
-    fh_upper_indx = np.argmin( abs( np.array(fh) - f_upper_limit ) )
+    fh_upper_indx = np.argmin( np.absolute( np.array(fh) - f_upper_limit ) ) + 1
     fh = fh[ : fh_upper_indx ]
     
     # Computing FFT
-    fft_ground_motion = fft( ground_motion ) / fs
+    fft_ground_motion = np.fft.fft( ground_motion, nfft ) / fs
     fft_ground_motion = fft_ground_motion[ : fh_upper_indx ]    
     abs_fft_ground_motion = abs( fft_ground_motion )
     
